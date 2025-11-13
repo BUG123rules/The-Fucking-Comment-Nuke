@@ -1,77 +1,218 @@
-#!/usr/bin/env python3
+
 import os
 import sys
 import re
 
-def remove_comments(source):
+def remove_comments_c_like(source):
     result = []
     in_block = False
-    i = 0
 
-    while i < len(source):
-        line = source[i]
+    for line in source:
+        i = 0
+        length = len(line)
+        new_line = ''
+        in_string = False
+        string_char = None
 
-        if not in_block:
-            # Look for start of block comment
-            start = line.find("/*")
-            slc = line.find("//")
+        while i < length:
+            ch = line[i]
+            nxt = line[i+1] if i+1 < length else ''
 
-            if start == -1 and slc == -1:
-                # No comments at all
-                result.append(line)
-            else:
-                # Case: a single-line comment appears first
-                if slc != -1 and (start == -1 or slc < start):
-                    result.append(line[:slc] + "\n")
+            
+            if in_block:
+                if ch == '*' and nxt == '/':
+                    in_block = False
+                    i += 2
+                    continue
                 else:
-                    # Block comment starts
-                    before = line[:start]
-                    end = line.find("*/", start + 2)
-                    if end != -1:
-                        # Comment ends on the same line
-                        after = line[end+2:]
-                        # Recursively clean the remainder of this line
-                        cleaned = remove_comments([before + after])
-                        result.extend(cleaned)
-                    else:
-                        # Block comment continues to future lines
-                        in_block = True
-                        result.append(before + "\n")
-        else:
-            # Currently inside /* ... */ block
-            end = line.find("*/")
-            if end != -1:
-                # Block ends here
-                after = line[end+2:]
-                in_block = False
-                cleaned = remove_comments([after])
-                result.extend(cleaned)
-            # Otherwise skip the whole line
+                    i += 1
+                    continue
 
-        i += 1
+            
+            if in_string:
+                
+                if ch == string_char:
+                    
+                    backslashes = 0
+                    j = i - 1
+                    while j >= 0 and line[j] == '\\':
+                        backslashes += 1
+                        j -= 1
+                    if backslashes % 2 == 0:
+                        in_string = False
+                        string_char = None
+                new_line += ch
+                i += 1
+                continue
+
+            
+            if ch in ('"', "'"):
+                in_string = True
+                string_char = ch
+                new_line += ch
+                i += 1
+                continue
+
+            
+            if ch == '/' and nxt == '/':
+                
+                new_line += '\n'
+                break
+
+            
+            if ch == '/' and nxt == '*':
+                in_block = True
+                i += 2
+                continue
+
+            
+            new_line += ch
+            i += 1
+
+        result.append(new_line)
 
     return result
 
-def process_file(path):
+def remove_comments_python(source):
+    result = []
+    in_block = False
+    block_delim = None
+
+    for line in source:
+        i = 0
+        length = len(line)
+        new_line = ''
+        in_string = False
+        string_char = None
+
+        while i < length:
+            ch = line[i]
+            nxt3 = line[i:i+3]
+
+            
+            if in_block:
+                if nxt3 == block_delim:
+                    in_block = False
+                    block_delim = None
+                    i += 3
+                    continue
+                else:
+                    i += 1
+                    continue
+
+            
+            if in_string:
+                if ch == string_char:
+                    
+                    backslashes = 0
+                    j = i - 1
+                    while j >= 0 and line[j] == '\\':
+                        backslashes += 1
+                        j -= 1
+                    if backslashes % 2 == 0:
+                        in_string = False
+                        string_char = None
+                new_line += ch
+                i += 1
+                continue
+
+            
+            if nxt3 in ("'''", '"""'):
+                in_block = True
+                block_delim = nxt3
+                i += 3
+                continue
+
+            
+            if ch in ('"', "'"):
+                in_string = True
+                string_char = ch
+                new_line += ch
+                i += 1
+                continue
+
+            
+            if ch == '#':
+                new_line += '\n'
+                break
+
+            
+            new_line += ch
+            i += 1
+
+        result.append(new_line)
+
+    return result
+
+def remove_comments_asm(source):
+    result = []
+    for line in source:
+        i = 0
+        length = len(line)
+        new_line = ''
+        in_string = False
+        string_char = None
+
+        while i < length:
+            ch = line[i]
+
+            if in_string:
+                if ch == string_char:
+                    
+                    backslashes = 0
+                    j = i - 1
+                    while j >= 0 and line[j] == '\\':
+                        backslashes += 1
+                        j -= 1
+                    if backslashes % 2 == 0:
+                        in_string = False
+                        string_char = None
+                new_line += ch
+                i += 1
+                continue
+
+            
+            if ch in ('"', "'"):
+                in_string = True
+                string_char = ch
+                new_line += ch
+                i += 1
+                continue
+
+            
+            if ch in (';', '@'):
+                new_line += '\n'
+                break
+
+            new_line += ch
+            i += 1
+
+        result.append(new_line)
+
+    return result
+
+def process_file(path, remover):
     with open(path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
-    cleaned = remove_comments(lines)
+    cleaned = remover(lines)
 
     with open(path, "w", encoding="utf-8") as f:
         f.writelines(cleaned)
 
-def walk_directory(root):
+def walk_directory(root, extensions, remover):
     for dirpath, dirnames, filenames in os.walk(root):
         for name in filenames:
-            if name.endswith(".java"):
+            lower_name = name.lower()
+            if lower_name.endswith(extensions):
                 full = os.path.join(dirpath, name)
                 print(f"Cleaning {full} ...")
-                process_file(full)
+                process_file(full, remover)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python remove_all_java_comments.py /path/to/project")
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print("Usage: python easyfuckingpeasy.py /path/to/project [language]")
+        print("Languages: java (default), cpp, cs, python, javascript, assembly")
         sys.exit(1)
 
     root = sys.argv[1]
@@ -79,4 +220,30 @@ if __name__ == "__main__":
         print("Error: provided path is not a directory")
         sys.exit(1)
 
-    walk_directory(root)
+    
+    language = sys.argv[2].lower() if len(sys.argv) == 3 else "java"
+
+    
+    if language == "java":
+        extensions = (".java",)
+        remover = remove_comments_c_like
+    elif language == "cpp":
+        extensions = (".cpp", ".c++")
+        remover = remove_comments_c_like
+    elif language == "cs":
+        extensions = (".cs",)
+        remover = remove_comments_c_like
+    elif language == "python":
+        extensions = (".py", ".python")
+        remover = remove_comments_python
+    elif language == "javascript":
+        extensions = (".js", ".javascript")
+        remover = remove_comments_c_like
+    elif language == "assembly":
+        extensions = (".asm",)
+        remover = remove_comments_asm
+    else:
+        print("Error: unknown language. Valid options are: java, cpp, cs, python, javascript, assembly")
+        sys.exit(1)
+
+    walk_directory(root, extensions, remover)
