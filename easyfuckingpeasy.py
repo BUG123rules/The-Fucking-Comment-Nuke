@@ -227,23 +227,54 @@ if __name__ == "__main__":
     if language == "java":
         extensions = (".java",)
         remover = remove_comments_c_like
+        multi_mode = False
     elif language == "cpp":
         extensions = (".cpp", ".c++")
         remover = remove_comments_c_like
+        multi_mode = False
     elif language == "cs":
         extensions = (".cs",)
         remover = remove_comments_c_like
+        multi_mode = False
     elif language == "python":
         extensions = (".py", ".python")
         remover = remove_comments_python
+        multi_mode = False
     elif language == "javascript":
         extensions = (".js", ".javascript")
         remover = remove_comments_c_like
+        multi_mode = False
     elif language == "assembly":
         extensions = (".asm",)
         remover = remove_comments_asm
+        multi_mode = False
+    elif language == "all":
+        
+        extension_map = {
+            ".java": remove_comments_c_like,
+            ".cpp": remove_comments_c_like,
+            ".c++": remove_comments_c_like,
+            ".cs": remove_comments_c_like,
+            ".py": remove_comments_python,
+            ".python": remove_comments_python,
+            ".js": remove_comments_c_like,
+            ".javascript": remove_comments_c_like,
+            ".asm": remove_comments_asm,
+        }
+        multi_mode = True
     else:
-        print("Error: unknown language. Valid options are: java, cpp, cs, python, javascript, assembly")
+        print("Error: unknown language. Valid options are: java, cpp, cs, python, javascript, assembly, all")
         sys.exit(1)
+
+    if multi_mode:
+        for dirpath, dirnames, filenames in os.walk(root):
+            for name in filenames:
+                lower_name = name.lower()
+                for ext, rm in extension_map.items():
+                    if lower_name.endswith(ext):
+                        full = os.path.join(dirpath, name)
+                        print(f"Cleaning {full} ...")
+                        process_file(full, rm)
+        sys.exit(0)
 
     walk_directory(root, extensions, remover)
