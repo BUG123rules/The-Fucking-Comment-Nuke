@@ -210,18 +210,22 @@ def walk_directory(root, extensions, remover):
                 process_file(full, remover)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2 or len(sys.argv) > 3:
-        print("Usage: python easyfuckingpeasy.py /path/to/project [language]")
+    if len(sys.argv) < 2 or len(sys.argv) > 4:
+        print("Usage: python easyfuckingpeasy.py /path/to/project [language] [mode]")
+        print("mode: dir (default) or file")
         print("Languages: java (default), cpp, cs, python, javascript, assembly")
         sys.exit(1)
 
     root = sys.argv[1]
-    if not os.path.isdir(root):
-        print("Error: provided path is not a directory")
-        sys.exit(1)
 
-    
-    language = sys.argv[2].lower() if len(sys.argv) == 3 else "java"
+    language = sys.argv[2].lower() if len(sys.argv) >= 3 else "java"
+
+    mode = "dir"
+    if len(sys.argv) == 4:
+        mode = sys.argv[3].lower()
+        if mode not in ("file", "dir"):
+            print("Error: mode must be either 'file' or 'dir'")
+            sys.exit(1)
 
     
     if language == "java":
@@ -264,6 +268,21 @@ if __name__ == "__main__":
         multi_mode = True
     else:
         print("Error: unknown language. Valid options are: java, cpp, cs, python, javascript, assembly, all")
+        sys.exit(1)
+
+    if mode == "file":
+        if multi_mode:
+            print("Error: single-file mode cannot be used with 'all' language option.")
+            sys.exit(1)
+        if not os.path.isfile(root):
+            print("Error: in 'file' mode the path must point to a file.")
+            sys.exit(1)
+        print(f"Cleaning {root} ...")
+        process_file(root, remover)
+        sys.exit(0)
+
+    if not os.path.isdir(root):
+        print("Error: provided path is not a directory")
         sys.exit(1)
 
     if multi_mode:
